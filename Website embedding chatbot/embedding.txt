@@ -1,0 +1,118 @@
+<html>
+  <head>
+    <link rel="stylesheet" href="https://pyscript.net/latest/pyscript.css" />
+    <script defer src="https://pyscript.net/latest/pyscript.js"></script>
+  </head>
+  <body>
+ 
+    <input type="text" id="input_str"/>
+    <button id="submit-button" type="button" py-click="my_function()">OK</button>
+    <div id="test-output"></div>
+ 
+    <p>Output:</p>
+    <p id='output'></p>
+
+        
+    <py-config>
+      packages = ["langchain", "pinecone", "tqdm", "transformers", "huggingface-hub", "textwrap", "sys", "os", "torch", "nltk"]
+    </py-config>
+
+    <py-script>
+      
+      from pyscript import Element
+      from langchain.document_loaders import UnstructuredURLLoader
+      from langchain.text_splitter import CharacterTextSplitter
+      from langchain.embeddings import OpenAIEmbeddings
+      from langchain.chat_models import ChatOpenAI
+      from langchain.vectorstores import FAISS
+      from langchain.vectorstores import Pinecone
+      import pinecone
+      from tqdm.autonotebook import tqdm
+      from langchain.chains import RetrievalQAWithSourcesChain
+      from langchain.embeddings import HuggingFaceEmbeddings
+      from transformers import AutoTokenizer, AutoModelForCausalLM
+      from transformers import pipeline
+      from langchain import HuggingFacePipeline
+      from huggingface_hub import notebook_login
+      import textwrap
+      import sys
+      import os
+      import torch
+      import nltk 
+      nltk.download('punkt')
+      nltk.download('averaged_perceptron_tagger')
+      os.environ['OPENAI_API_KEY']='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'
+      
+      URLs=[
+        'https://blog.gopenai.com/paper-review-llama-2-open-foundation-and-fine-tuned-chat-models-23e539522acb',
+        'https://www.mosaicml.com/blog/mpt-7b',
+        'https://stability.ai/blog/stability-ai-launches-the-first-of-its-stablelm-suite-of-language-models',
+        'https://lmsys.org/blog/2023-03-30-vicuna/'
+      ]
+
+      
+      loaders=UnstructuredURLLoader(urls=URLs) 
+      data=loaders.load()
+
+      text_splitter=CharacterTextSplitter(separator='\n',
+                                    chunk_size=1000,
+                                    chunk_overlap=200)
+     
+      text_chunks=text_splitter.split_documents(data)
+      embeddings=HuggingFaceEmbeddings()
+      query_result = embeddings.embed_query("Hello world")
+      vectorstore=FAISS.from_documents(text_chunks, embeddings)
+     
+      #PINECONE_API_KEY=os.environ.get('PINECONE_API_KEY', 'f5444e56-58db-42db-afd6-d4bd9b2cb40c')
+      #PINECONE_API_ENV=os.environ.get('PINECONE_API_ENV', 'asia-southeast1-gcp-free')
+     
+      #pinecone.init(
+      #    api_key=PINECONE_API_KEY,
+      ##    environment=PINECONE_API_ENV
+      #)
+     
+
+      #index_name='langchainpinecone'
+     
+      #vectorstore=Pinecone.from_texts([t.page_content for t in text_chunks], embeddings, index_name=index_name)
+     
+      #vectorstore=Pinecone.from_documents(text_chunks, embeddings, index_name=index_name)
+
+      llm=ChatOpenAI()
+      notebook_login()
+      tokenizer = AutoTokenizer.from_pretrained("meta-llama/Llama-2-7b-chat-hf",
+                                          use_auth_token=True,)
+
+
+      model = AutoModelForCausalLM.from_pretrained("meta-llama/Llama-2-7b-chat-hf",
+                                             device_map='auto',
+                                             torch_dtype=torch.float16,
+                                             use_auth_token=True,
+                                              load_in_8bit=True,
+                                              #load_in_4bit=True
+                                             )
+      pipe = pipeline("text-generation",
+                model=model,
+                tokenizer= tokenizer,
+                torch_dtype=torch.bfloat16,
+                device_map="auto",
+                max_new_tokens = 512,
+                do_sample=True,
+                top_k=30,
+                num_return_sequences=1,
+                eos_token_id=tokenizer.eos_token_id
+                )
+
+      llm=HuggingFacePipeline(pipeline=pipe, model_kwargs={'temperature':0})
+      
+      def my_function():
+          query=Element('input.str').value
+          result=chain({'question':query})
+          result_place = Element('output')
+          result_place.write(result)
+      
+     
+    </py-script>
+</body>
+
+
